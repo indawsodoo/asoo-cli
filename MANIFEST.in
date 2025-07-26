@@ -1,0 +1,2 @@
+include src/common/cli_config.yml
+include src/repositories.yml

@@ -1,0 +1,4 @@
+# src/common/cli_config.yml
+
+# Global CLI configuration
+cli_name: incloud # The desired name for your main CLI command
