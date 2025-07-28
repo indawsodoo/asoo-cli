@@ -1,16 +1,20 @@
-# src/git/git_operations.py
+# src/submodule/operations.py
 import os
 import subprocess
 from typing import Optional, Dict, Any
 
 
-class GitOperations:
+class SubmoduleOperations:
     """
     Handles low-level Git operations using subprocess calls.
     """
     def __init__(self, cli_instance, logger_instance):
         self.cli = cli_instance
         self.logger = logger_instance
+
+    # ------------------------------
+    # BASH COMMANDS METHODS
+    # ------------------------------
 
     def _run_git_command(self, command: list, path: str, env: Optional[Dict[str, str]] = None) -> Optional[str]:
         """
@@ -42,13 +46,15 @@ class GitOperations:
             self.logger.error(f"An unexpected error occurred while running Git command: {e}")
             raise
 
-    def clone_or_update(self, repo_data: Dict[str, Any], path: str) -> Optional[str]:
+    # ------------------------------
+    # OPERATIONS METHODS
+    # ------------------------------
+
+    def clone(self, repo_data: Dict[str, Any], path: str) -> Optional[str]:
         """
-        Clones a repository if it doesn't exist, or updates it if it does.
-        Handles branch, commit, depth, and squash_history options.
+        Adds a new repository to the YAML file.
         Returns the final commit hash.
         """
-        repo_name = repo_data.get('name', 'unknown_repo')
         repo_url = repo_data.get('url')
         repo_path = repo_data.get('path')
         branch = repo_data.get('branch')
@@ -56,7 +62,7 @@ class GitOperations:
         depth = repo_data.get('depth')
 
         if not repo_url or not repo_path:
-            self.logger.error(f"Skipping '{repo_name}': 'url' or 'path' is missing.")
+            self.logger.error(f"Skipping '{repo_path}': 'url' or 'path' is missing.")
             return None
 
         # Resolve relative path to absolute path
@@ -71,52 +77,73 @@ class GitOperations:
         # Clone if repository does not exist
         try:
             if not os.path.exists(os.path.join(abs_repo_path, '.git')):
-                self.logger.info(f"Repository '{repo_name}' does not exist at {abs_repo_path}. Cloning...")
-                clone_command = ["clone"]
-                if depth:
-                    clone_command.extend(["--depth", str(depth)])
-                if branch:
-                    clone_command.extend(["--branch", branch])
-                clone_command.extend(["--filter=blob:none"])
-                clone_command.extend([repo_url, abs_repo_path])
-                self._run_git_command(clone_command, parent_dir)
+                self._clone(repo_url, abs_repo_path, branch, depth, parent_dir)
 
             if commit:
-                self._run_git_command(["fetch", "--depth", '1', 'origin', commit], abs_repo_path)
-                self._run_git_command(["reset", "--quiet", "--hard", commit], abs_repo_path)
-                self._run_git_command(["clean", "-ffd"], abs_repo_path)
+                self._fetch_and_reset(commit, commit, abs_repo_path)
 
-            return self.get_current_commit_hash(abs_repo_path)
+            return self._current_commit_hash(abs_repo_path)
         except Exception as e:
-            self.logger.error(f"Failed to update repository '{repo_name}': {e}")
+            self.logger.error(f"Failed to update repository '{repo_path}': {e}")
             return None
 
     def update(self, repo_data: Dict[str, Any], path: str, remote: bool = False) -> Optional[str]:
         """
         Updates a repository to the specified commit hash.
         """
-        repo_name = repo_data.get('name', 'unknown_repo')
         repo_path = repo_data.get('path')
         commit = repo_data.get('commit')
         branch = str(repo_data.get('branch'))
-        resource = commit if not remote and commit else branch
-        reset_resource = f"origin/{resource}" if remote else resource
 
         abs_repo_path = os.path.abspath(os.path.join(path, repo_path))
         if not os.path.exists(os.path.join(abs_repo_path, '.git')):
-            self.logger.error(f"Repository '{repo_name}' does not exist at {abs_repo_path}. Cannot update.")
-            return None
+            self.clone(repo_data, path)
         try:
-            self._run_git_command(["fetch", 'origin', resource], abs_repo_path)
-            self._run_git_command(["reset", "--quiet", "--hard", reset_resource], abs_repo_path)
-            self._run_git_command(["clean", "-ffd"], abs_repo_path)
 
-            return self.get_current_commit_hash(abs_repo_path)
+            if remote:
+                self._fetch_and_reset(branch, f"origin/{branch}", abs_repo_path)
+            else:
+                self._fetch_and_reset(commit, commit, abs_repo_path)
+
+            return self._current_commit_hash(abs_repo_path)
         except Exception as e:
-            self.logger.error(f"Failed to update repository '{repo_name}': {e}")
+            self.logger.error(f"Failed to update repository '{repo_path}': {e}")
             return None
 
-    def get_current_commit_hash(self, repo_path: str) -> Optional[str]:
+    # ------------------------------
+    # GIT COMMANDS METHODS
+    # ------------------------------
+
+    def _clone(self, repo_url: str, repo_path: str, branch: str, depth: int, path: str) -> Optional[str]:
+        """
+        Clones a repository.
+        """
+        self.logger.info(f"Repository '{repo_path}' does not exist at {repo_path}. Cloning...")
+        clone_command = ["clone"]
+        if depth:
+            clone_command.extend(["--depth", str(depth)])
+        if branch:
+            clone_command.extend(["--branch", branch])
+        clone_command.extend(["--filter=blob:none"])
+        clone_command.extend(["--single-branch"])
+        clone_command.extend([repo_url, repo_path])
+        self._run_git_command(clone_command, path)
+
+    def _fetch_and_reset(self, fetch_resource: str, reset_resource: str, path: str) -> Optional[str]:
+        """
+        Fetches and resets a repository to the specified commit hash.
+        """
+        self._run_git_command([
+            "fetch", "--depth", '1', 'origin', fetch_resource],
+            path
+        )
+        self._run_git_command([
+            "reset", "--quiet", "--hard", reset_resource],
+            path
+        )
+        self._run_git_command(["clean", "-ffd"], path)
+
+    def _current_commit_hash(self, repo_path: str) -> Optional[str]:
         """
         Retrieves the current HEAD commit hash of a repository.
         """

@@ -6,7 +6,7 @@ import os
 # Absolute imports from the 'src' package
 from common.logger_utils import setup_logger
 from common.cli_config import CLIConfig
-from git.commands import GitCommands
+from submodule.commands import SubmoduleCommands
 
 # Get CLI configuration for the program name
 cli_config = CLIConfig()
@@ -40,8 +40,11 @@ class MainCLI:
         Each command is added through its own handler class.
         """
         # Register the 'git' command
-        git_commands_handler = GitCommands(self)
-        git_commands_handler.add_subparser(self.subparsers, CLI_COMMAND_NAME)
+        submodule_commands_handler = SubmoduleCommands(self)
+        submodule_commands_handler.add_subparser(
+            self.subparsers,
+            CLI_COMMAND_NAME
+        )
 
         # You could register other commands here in the future:
         # ci_commands_handler = CICommands()
