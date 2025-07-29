@@ -24,7 +24,7 @@ def setup_logger(name: str = "CLI_Tool", level: int = logging.INFO) -> logging.L
         handler = logging.StreamHandler(sys.stdout)
         # Log format: Colored Level, Timestamp, Logger Name, Message
         formatter = ColoredFormatter(
-            "%(log_color)s%(levelname)s%(reset)s %(message)s",
+            "%(log_color)s%(bold)s%(levelname)s%(reset)s %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
             log_colors={
                 'DEBUG': 'cyan',
