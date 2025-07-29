@@ -22,16 +22,10 @@ class SubmoduleConfig:
         # Load environment variables upon initialization
         if env_path and os.path.exists(env_path):
             load_dotenv(dotenv_path=env_path)
-            logger.info(f"Environment variables loaded from specified file: '{env_path}'.")
         else:
             # If no specific path is provided or the file doesn't exist,
             # load_dotenv() will search for '.env' in the current directory.
             load_dotenv()
-            if env_path: # If a non-existent path was explicitly given
-                logger.warning(f"Specified .env file '{env_path}' not found. "
-                               "Attempting to load '.env' from current directory by default.")
-            else: # If no path was specified, use load_dotenv's default behavior
-                logger.info("Attempting to load environment variables from default '.env' (if it exists).")
 
 
     def _resolve_env_variables(self, data: Any) -> Any:
@@ -71,8 +65,6 @@ class SubmoduleConfig:
 
             # Resolve environment variables after loading the YAML
             self.config_data = self._resolve_env_variables(raw_config)
-
-            logger.info(f"Configuration loaded from: {self.config_path}")
             return self.config_data
         except yaml.YAMLError as e:
             logger.error(f"Error parsing YAML file {self.config_path}: {e}")
@@ -110,7 +102,7 @@ class SubmoduleConfig:
             if repo.get('path') == repo_path:
                 repo['commit'] = new_commit_hash
                 found = True
-                logger.info(f"Commit updated for '{repo_path}': {new_commit_hash[:7]}")
+                logger.info(f"Submodule \033[1;33;1m{repo_path}\033[0m updated to commit \033[1m{new_commit_hash}\033[0m")
                 break
 
         if not found:
@@ -168,8 +160,13 @@ class SubmoduleConfig:
             return False
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
-                yaml.safe_dump(self.config_data, f, indent=2, default_flow_style=False, sort_keys=False)
-            logger.info(f"Configuration saved to: {self.config_path}")
+                yaml.safe_dump(
+                    self.config_data,
+                    f,
+                    indent=2,
+                    default_flow_style=False,
+                    sort_keys=False
+                )
             return True
         except Exception as e:
             logger.error(f"Error saving configuration to {self.config_path}: {e}")

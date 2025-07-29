@@ -57,12 +57,16 @@ class AsooCli:
         args = self.parser.parse_args()
 
         # If the subcommand has an associated function (set by set_defaults), call it
-        if hasattr(args, 'func'):
-            args.func(args)
-        else:
-            # This should not be executed if required=True is set for subparsers, but it's a good fallback
-            logger.error(f"Command not implemented or incomplete arguments for: {args.command}")
-            self.parser.print_help()
+        try:
+            if hasattr(args, 'func'):
+                args.func(args)
+            else:
+                # This should not be executed if required=True is set for subparsers, but it's a good fallback
+                logger.error(f"Command not implemented or incomplete arguments for: {args.command}")
+                self.parser.print_help()
+                sys.exit(1)
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt detected. Exiting...")
             sys.exit(1)
 
 

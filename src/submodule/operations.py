@@ -23,7 +23,13 @@ class SubmoduleOperations:
     # BASH COMMANDS METHODS
     # ------------------------------
 
-    def _run_git_command(self, command: list, path: str, env: Optional[Dict[str, str]] = None) -> Optional[str]:
+    def _run_git_command(
+        self,
+        command: list,
+        path: str,
+        env: Optional[Dict[str, str]] = None,
+        capture_output: bool = True
+    ) -> Optional[str]:
         """
         Runs a Git command in the specified path and returns its stdout.
         Handles errors and logs output.
@@ -36,8 +42,8 @@ class SubmoduleOperations:
                 cwd=path,
                 capture_output=True,
                 text=True,
-                check=True, # Raise an exception for non-zero exit codes
-                env=env # Pass custom environment variables (e.g., GIT_SSH_COMMAND)
+                check=True,
+                env=env
             )
             self.logger.debug(f"Command stdout: {process.stdout.strip()}")
             return process.stdout.strip()
@@ -57,7 +63,7 @@ class SubmoduleOperations:
     # OPERATIONS METHODS
     # ------------------------------
 
-    def clone(self, repo_data: Dict[str, Any], path: str, git_clean: bool = True) -> Optional[str]:
+    def clone(self, repo_data: Dict[str, Any], path: str, git_clean: bool = False) -> Optional[str]:
         """
         Adds a new repository to the YAML file.
         Returns the final commit hash.
@@ -86,8 +92,11 @@ class SubmoduleOperations:
 
         # Clone if repository does not exist
         try:
-            if not os.path.exists(os.path.join(abs_repo_path, '.git')):
+            if not self._exist_repo(abs_repo_path):
+                self.logger.info(f"Cloning \033[1;33;1m{repo_path}\033[0m...")
                 self._clone(repo_url, abs_repo_path, branch, depth, parent_dir)
+            else:
+                self.logger.info(f"Repository '{repo_path}' already exists at {repo_path}. Updating...")
 
             if commit:
                 self._fetch_and_reset(commit, commit, abs_repo_path)
@@ -114,10 +123,12 @@ class SubmoduleOperations:
         # Recreate Git repository
         self._recreate_git(repo_url, branch, commit, abs_repo_path)
 
-        if not os.path.exists(os.path.join(abs_repo_path, '.git')):
-            self.clone(repo_data, path)
-        try:
+        # Clone if repository does not exist
+        if not self._exist_repo(abs_repo_path):
+            return self.clone(repo_data, path)
 
+        # Update repository
+        try:
             if remote:
                 self._fetch_and_reset(branch, f"origin/{branch}", abs_repo_path)
             else:
@@ -138,6 +149,7 @@ class SubmoduleOperations:
         repo_path = repo_data.get('path')
         if not os.path.exists(os.path.join(path, repo_path)):
             return None
+        self.logger.info(f"Removing \033[1;33;1m{repo_path}\033[0m...")
         shutil.rmtree(os.path.join(path, repo_path))
         return None
 
@@ -166,6 +178,28 @@ class SubmoduleOperations:
         return repositories
 
     # ------------------------------
+    # UTILITY METHODS
+    # ------------------------------
+    def _remove_git(self, path: str) -> Optional[str]:
+        """
+        Removes a Git repository.
+        """
+        shutil.rmtree(os.path.join(path, '.git'))
+        return None
+
+    def _has_git(self, path: str) -> bool:
+        """
+        Checks if a directory has a Git repository.
+        """
+        return os.path.exists(os.path.join(path, '.git'))
+
+    def _exist_repo(self, path: str) -> bool:
+        """
+        Checks if a directory exists.
+        """
+        return os.path.exists(path)
+
+    # ------------------------------
     # GIT COMMANDS METHODS
     # ------------------------------
 
@@ -173,7 +207,6 @@ class SubmoduleOperations:
         """
         Clones a repository.
         """
-        self.logger.info(f"Repository '{repo_path}' does not exist at {repo_path}. Cloning...")
         clone_command = ["clone"]
         if depth:
             clone_command.extend(["--depth", str(depth)])
@@ -212,23 +245,12 @@ class SubmoduleOperations:
             self.logger.error(f"Failed to get current commit hash for {repo_path}: {e}")
             return None
 
-    def _remove_git(self, path: str) -> Optional[str]:
-        """
-        Removes a Git repository.
-        """
-        shutil.rmtree(os.path.join(path, '.git'))
-        return None
-
     def _recreate_git(self, url: str, branch: str, commit: str, path: str) -> Optional[str]:
         """
         Recreates a Git repository.
         """
-        if not os.path.exists(path) or os.path.exists(
-            os.path.join(path, '.git')
-        ):
-            return None
-        self._run_git_command(["init"], path)
-        self._run_git_command(['remote', 'add', 'origin', url], path)
-        self._run_git_command(['checkout', '-b', branch], path)
-        self._fetch_and_reset(commit, commit, path)
-        return None
+        if self._exist_repo(path) and not self._has_git(path):
+            self._run_git_command(["init"], path)
+            self._run_git_command(['remote', 'add', 'origin', url], path)
+            self._run_git_command(['checkout', '-b', branch], path)
+            self._fetch_and_reset(commit, commit, path)

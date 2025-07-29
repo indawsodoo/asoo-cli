@@ -54,8 +54,6 @@ class CLIConfig:
                 logger.error(f"Error parsing CLI configuration file {actual_config_path}: {e}")
             except Exception as e:
                 logger.error(f"Unexpected error loading CLI configuration: {e}")
-        else:
-            logger.info("CLI configuration file not found. Using default values.")
 
         self._is_loaded = True
 
