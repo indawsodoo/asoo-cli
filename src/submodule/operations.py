@@ -1,5 +1,6 @@
 # src/submodule/operations.py
 import os
+import sys
 import subprocess
 import shutil
 import git
@@ -35,7 +36,9 @@ class SubmoduleOperations:
         Handles errors and logs output.
         """
         full_command = ["git"] + command
-        self.logger.debug(f"Executing command: {' '.join(map(str, full_command))} in {path}")
+        self.logger.debug(
+            f"Executing command: {' '.join(map(str, full_command))} in {path}"
+        )
         try:
             process = subprocess.run(
                 list(map(str, full_command)),
@@ -63,7 +66,12 @@ class SubmoduleOperations:
     # OPERATIONS METHODS
     # ------------------------------
 
-    def clone(self, repo_data: Dict[str, Any], path: str, git_clean: bool = False) -> Optional[str]:
+    def clone(
+        self,
+        repo_data: Dict[str, Any],
+        path: str,
+        git_clean: bool = False
+    ) -> Optional[str]:
         """
         Adds a new repository to the YAML file.
         Returns the final commit hash.
@@ -87,7 +95,6 @@ class SubmoduleOperations:
 
         # Ensure parent directory exists
         if not os.path.exists(parent_dir):
-            self.logger.info(f"Creating parent directory: {parent_dir}")
             os.makedirs(parent_dir)
 
         # Clone if repository does not exist
@@ -109,7 +116,14 @@ class SubmoduleOperations:
             self.logger.error(f"Failed to update repository '{repo_path}': {e}")
             return None
 
-    def update(self, repo_data: Dict[str, Any], path: str, remote: bool = False, git_clean: bool = False) -> Optional[str]:
+    def update(
+        self,
+        repo_data: Dict[str, Any],
+        path: str,
+        remote: bool = False,
+        git_clean: bool = False,
+        ignore_local_changes: bool = False
+    ) -> Optional[str]:
         """
         Updates a repository to the specified commit hash.
         """
@@ -119,6 +133,16 @@ class SubmoduleOperations:
         branch = str(repo_data.get('branch'))
 
         abs_repo_path = os.path.abspath(os.path.join(path, repo_path))
+
+        if self._has_git(abs_repo_path) and not ignore_local_changes:
+            response = input(
+                f"\nDo you want to continue and lose local changes in"
+                f" \033[1;33;1m{repo_path}\033[0m? (y/N): "
+            )
+            sys.stdout.write("\n")
+            if response.lower() not in ['y', 'yes']:
+                self.logger.info('Update cancelled by user.')
+                return None
 
         # Recreate Git repository
         self._recreate_git(repo_url, branch, commit, abs_repo_path)
@@ -137,6 +161,11 @@ class SubmoduleOperations:
             commit = self._current_commit_hash(abs_repo_path)
             if git_clean:
                 self._remove_git(abs_repo_path)
+
+            self.logger.info(
+                f"Submodule \033[1;33;1m{repo_path}\033[0m updated to commit"
+                f" \033[1;34;1m{commit}\033[0m"
+            )
             return commit
         except Exception as e:
             self.logger.error(f"Failed to update repository '{repo_path}': {e}")
@@ -191,7 +220,9 @@ class SubmoduleOperations:
         """
         Checks if a directory has a Git repository.
         """
-        return os.path.exists(os.path.join(path, '.git'))
+        return self._exist_repo(path) and os.path.exists(
+            os.path.join(path, '.git')
+        )
 
     def _exist_repo(self, path: str) -> bool:
         """
@@ -203,7 +234,14 @@ class SubmoduleOperations:
     # GIT COMMANDS METHODS
     # ------------------------------
 
-    def _clone(self, repo_url: str, repo_path: str, branch: str, depth: int, path: str) -> Optional[str]:
+    def _clone(
+        self,
+        repo_url: str,
+        repo_path: str,
+        branch: str,
+        depth: int,
+        path: str,
+    ) -> Optional[str]:
         """
         Clones a repository.
         """
@@ -217,7 +255,12 @@ class SubmoduleOperations:
         clone_command.extend([repo_url, repo_path])
         self._run_git_command(clone_command, path)
 
-    def _fetch_and_reset(self, fetch_resource: str, reset_resource: str, path: str) -> Optional[str]:
+    def _fetch_and_reset(
+        self,
+        fetch_resource: str,
+        reset_resource: str,
+        path: str
+    ) -> Optional[str]:
         """
         Fetches and resets a repository to the specified commit hash.
         """
@@ -236,16 +279,24 @@ class SubmoduleOperations:
         Retrieves the current HEAD commit hash of a repository.
         """
         abs_repo_path = os.path.abspath(repo_path)
-        if not os.path.exists(abs_repo_path) or not os.path.isdir(os.path.join(abs_repo_path, '.git')):
-            self.logger.warning(f"Repository path does not exist or is not a Git repo: {abs_repo_path}")
+        if not self._exist_repo(abs_repo_path) or not self._has_git(
+            abs_repo_path
+        ):
             return None
+
         try:
             return self._run_git_command(["rev-parse", "HEAD"], abs_repo_path)
         except Exception as e:
             self.logger.error(f"Failed to get current commit hash for {repo_path}: {e}")
             return None
 
-    def _recreate_git(self, url: str, branch: str, commit: str, path: str) -> Optional[str]:
+    def _recreate_git(
+        self,
+        url: str,
+        branch: str,
+        commit: str,
+        path: str
+    ) -> Optional[str]:
         """
         Recreates a Git repository.
         """

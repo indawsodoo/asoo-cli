@@ -140,6 +140,11 @@ This option is similar to 'clone' but focused on existing repositories.
             action="store_true",
             help="Clean .git path of the repository to save space on disk."
         )
+        update_parser.add_argument(
+            "-ilc", "--ignore-local-changes",
+            action="store_true",
+            help="Ignore local changes in repositories and lose them"
+        )
         update_parser.set_defaults(func=self.handle_submodule_operation)
 
         # 'submodule rm' subcommand
@@ -215,10 +220,11 @@ Generate a new YAML from .gitmodules file.
     def handle_submodule_operation(self, args: argparse.Namespace):
         try:
             method = getattr(self, f"command_{args.command}")
-            method(args)
         except AttributeError:
             logger.error(f"Invalid submodule command: {args.command}")
             sys.exit(1)
+
+        method(args)
 
     def command_add(
         self,
@@ -265,7 +271,13 @@ Generate a new YAML from .gitmodules file.
 
         # Get repositories to update
         if args.path:
-            repos = [self.config.get_repositories(path=args.path)]
+            repos = self.config.get_repositories(path=args.path)
+            if not repos:
+                logger.error(
+                    f"Submodule \033[1;33;1m{args.path}\033[0m not found"
+                )
+                sys.exit(1)
+            repos = [repos]
         else:
             repos = self.config.get_repositories()
 
@@ -275,8 +287,12 @@ Generate a new YAML from .gitmodules file.
                 repo_data,
                 self.config_path,
                 args.remote,
-                args.git_clean
+                args.git_clean,
+                args.ignore_local_changes
             )
+            if not commit:
+                continue
+
             # Update YAML file
             self.config.update_repository_commit(repo_data.get('path'), commit)
             self.config.save_config()

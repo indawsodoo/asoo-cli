@@ -102,7 +102,6 @@ class SubmoduleConfig:
             if repo.get('path') == repo_path:
                 repo['commit'] = new_commit_hash
                 found = True
-                logger.info(f"Submodule \033[1;33;1m{repo_path}\033[0m updated to commit \033[1m{new_commit_hash}\033[0m")
                 break
 
         if not found:
