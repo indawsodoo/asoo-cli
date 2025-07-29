@@ -11,10 +11,11 @@ setup(
         'PyYAML>=6.0',
         'colorlog>=6.7.0',
         'python-dotenv>=1.0.0',
+        'GitPython>=3.1.45',
     ],
     entry_points={
         'console_scripts': [
-            'incloud = main_cli:main_cli',
+            'incloud = asoo_cli:asoo_cli',
         ],
     },
     author='David Gómez',

@@ -1,4 +1,4 @@
-# src/main_cli.py
+# src/asoo_cli.py
 import argparse
 import sys
 import os
@@ -16,7 +16,7 @@ CLI_COMMAND_NAME = cli_config.get_command_name()
 logger = setup_logger("CLI_Manager")
 
 
-class MainCLI:
+class AsooCli:
     """
     Main class for managing the command-line interface and dispatching commands.
     """
@@ -50,7 +50,6 @@ class MainCLI:
         # ci_commands_handler = CICommands()
         # ci_commands_handler.add_subparser(self.subparsers, CLI_COMMAND_NAME)
 
-
     def run(self):
         """
         Executes the parser and dispatches the corresponding command.
@@ -67,13 +66,13 @@ class MainCLI:
             sys.exit(1)
 
 
-def main_cli():
+def asoo_cli():
     """
     Entry point function for the CLI, called by console_scripts.
     """
-    cli = MainCLI()
+    cli = AsooCli()
     cli.run()
 
 
 if __name__ == "__main__":
-    main_cli()
+    asoo_cli()

@@ -1,7 +1,14 @@
 # src/submodule/operations.py
 import os
 import subprocess
+import shutil
+import git
+import yaml
+from collections import OrderedDict
+
 from typing import Optional, Dict, Any
+
+from helpers.yaml import OrderedDictDumper
 
 
 class SubmoduleOperations:
@@ -50,7 +57,7 @@ class SubmoduleOperations:
     # OPERATIONS METHODS
     # ------------------------------
 
-    def clone(self, repo_data: Dict[str, Any], path: str) -> Optional[str]:
+    def clone(self, repo_data: Dict[str, Any], path: str, git_clean: bool = True) -> Optional[str]:
         """
         Adds a new repository to the YAML file.
         Returns the final commit hash.
@@ -69,6 +76,9 @@ class SubmoduleOperations:
         abs_repo_path = os.path.abspath(os.path.join(path, repo_path))
         parent_dir = os.path.dirname(abs_repo_path)
 
+        # Recreate Git repository
+        self._recreate_git(repo_url, branch, commit, abs_repo_path)
+
         # Ensure parent directory exists
         if not os.path.exists(parent_dir):
             self.logger.info(f"Creating parent directory: {parent_dir}")
@@ -82,20 +92,28 @@ class SubmoduleOperations:
             if commit:
                 self._fetch_and_reset(commit, commit, abs_repo_path)
 
-            return self._current_commit_hash(abs_repo_path)
+            commit = self._current_commit_hash(abs_repo_path)
+            if git_clean:
+                self._remove_git(abs_repo_path)
+            return commit
         except Exception as e:
             self.logger.error(f"Failed to update repository '{repo_path}': {e}")
             return None
 
-    def update(self, repo_data: Dict[str, Any], path: str, remote: bool = False) -> Optional[str]:
+    def update(self, repo_data: Dict[str, Any], path: str, remote: bool = False, git_clean: bool = False) -> Optional[str]:
         """
         Updates a repository to the specified commit hash.
         """
         repo_path = repo_data.get('path')
+        repo_url = repo_data.get('url')
         commit = repo_data.get('commit')
         branch = str(repo_data.get('branch'))
 
         abs_repo_path = os.path.abspath(os.path.join(path, repo_path))
+
+        # Recreate Git repository
+        self._recreate_git(repo_url, branch, commit, abs_repo_path)
+
         if not os.path.exists(os.path.join(abs_repo_path, '.git')):
             self.clone(repo_data, path)
         try:
@@ -105,10 +123,47 @@ class SubmoduleOperations:
             else:
                 self._fetch_and_reset(commit, commit, abs_repo_path)
 
-            return self._current_commit_hash(abs_repo_path)
+            commit = self._current_commit_hash(abs_repo_path)
+            if git_clean:
+                self._remove_git(abs_repo_path)
+            return commit
         except Exception as e:
             self.logger.error(f"Failed to update repository '{repo_path}': {e}")
             return None
+
+    def rm(self, repo_data: Dict[str, Any], path: str) -> Optional[str]:
+        """
+        Removes a repository from the YAML file.
+        """
+        repo_path = repo_data.get('path')
+        if not os.path.exists(os.path.join(path, repo_path)):
+            return None
+        shutil.rmtree(os.path.join(path, repo_path))
+        return None
+
+    def generate(self, gitmodules_file: str, output_file: str) -> Optional[str]:
+        """
+        Generates a new YAML from .gitmodules file.
+        """
+        repo_path = os.path.dirname(gitmodules_file)
+        repo = git.Repo(repo_path)
+        repositories = []
+        for submodule in repo.submodules:
+            repositories.append(OrderedDict({
+                'path': submodule.path,
+                'url': submodule.url,
+                'branch': submodule.branch_name,
+                'commit': submodule.hexsha,
+                'depth': 1
+            }))
+
+        with open(output_file, 'w') as f:
+            yaml.dump(
+                {'repositories': repositories},
+                f,
+                Dumper=OrderedDictDumper
+            )
+        return repositories
 
     # ------------------------------
     # GIT COMMANDS METHODS
@@ -156,3 +211,24 @@ class SubmoduleOperations:
         except Exception as e:
             self.logger.error(f"Failed to get current commit hash for {repo_path}: {e}")
             return None
+
+    def _remove_git(self, path: str) -> Optional[str]:
+        """
+        Removes a Git repository.
+        """
+        shutil.rmtree(os.path.join(path, '.git'))
+        return None
+
+    def _recreate_git(self, url: str, branch: str, commit: str, path: str) -> Optional[str]:
+        """
+        Recreates a Git repository.
+        """
+        if not os.path.exists(path) or os.path.exists(
+            os.path.join(path, '.git')
+        ):
+            return None
+        self._run_git_command(["init"], path)
+        self._run_git_command(['remote', 'add', 'origin', url], path)
+        self._run_git_command(['checkout', '-b', branch], path)
+        self._fetch_and_reset(commit, commit, path)
+        return None

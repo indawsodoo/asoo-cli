@@ -144,6 +144,21 @@ class SubmoduleConfig:
             'depth': depth,
         })
 
+    def remove_repository(self, path: str) -> bool:
+        """
+        Removes a repository from the configuration.
+        """
+        if not self.config_data or 'repositories' not in self.config_data:
+            logger.warning("No configuration data loaded or 'repositories' section is missing.")
+            return False
+
+        self.config_data['repositories'] = [
+            repo
+            for repo in self.config_data['repositories']
+            if repo.get('path') != path
+        ]
+        return True
+
     def save_config(self) -> bool:
         """
         Saves the current configuration back to the YAML file.
