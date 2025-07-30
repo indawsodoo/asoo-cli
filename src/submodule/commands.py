@@ -17,9 +17,12 @@ class SubmoduleCommands:
     """
     def __init__(self, cli_instance):
         self.cli = cli_instance
-        self.operations = SubmoduleOperations(self.cli, logger)
+        self.operations = SubmoduleOperations(self.cli, self, logger)
         self.config = None
         self.config_path = None
+        self.config_name = None
+        self.hidden_config = None
+        self.hidden_config_name = None
 
     def add_subparser(self, subparsers: argparse._SubParsersAction, cli_command_name: str):
         """
@@ -201,6 +204,9 @@ Generate a new YAML from .gitmodules file.
         generate_parser.set_defaults(func=self.handle_submodule_operation)
 
     def load_config(self, args: argparse.Namespace):
+        if not args.config_file:
+            return
+
         config_file_path = os.path.join(
             self.cli.execution_path,
             args.config_file
@@ -210,12 +216,22 @@ Generate a new YAML from .gitmodules file.
                 f"Configuration file not found: {config_file_path}"
             )
             sys.exit(1)
+
+        # Load config
         self.config = SubmoduleConfig(config_file_path, env_path=args.env_file)
         self.config_path = os.path.dirname(config_file_path)
-
+        self.config_name = os.path.basename(config_file_path)
         if not self.config.load_config():
             logger.critical("Could not load repository configuration. Exiting.")
             sys.exit(1)
+
+        # Load hidden config
+        self.hidden_config_name = f'.{self.config_name}'
+        self.hidden_config = SubmoduleConfig(
+            os.path.join(self.config_path, self.hidden_config_name),
+            env_path=args.env_file
+        )
+        self.hidden_config.load_config()
 
     def handle_submodule_operation(self, args: argparse.Namespace):
         try:
@@ -224,7 +240,20 @@ Generate a new YAML from .gitmodules file.
             logger.error(f"Invalid submodule command: {args.command}")
             sys.exit(1)
 
+        self.remove_deleted_submodules(args)
         method(args)
+
+        # Save backup config file
+        if self.hidden_config and self.config:
+            self.config.save_config(self.hidden_config.config_path)
+
+    def remove_deleted_submodules(self, args: argparse.Namespace):
+        self.load_config(args)
+        repositories = [r.get('path') for r in self.config.get_repositories()]
+        old_repositories = self.hidden_config.get_repositories()
+        for repository in old_repositories:
+            if repository.get('path') not in repositories:
+                self.operations.rm(repository, self.config_path)
 
     def command_add(
         self,

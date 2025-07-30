@@ -16,8 +16,9 @@ class SubmoduleOperations:
     """
     Handles low-level Git operations using subprocess calls.
     """
-    def __init__(self, cli_instance, logger_instance):
+    def __init__(self, cli_instance, commands_instance, logger_instance):
         self.cli = cli_instance
+        self.commands = commands_instance
         self.logger = logger_instance
 
     # ------------------------------
@@ -177,10 +178,10 @@ class SubmoduleOperations:
         """
         repo_path = repo_data.get('path')
         if not os.path.exists(os.path.join(path, repo_path)):
-            return None
+            return
         self.logger.info(f"Removing \033[1;33;1m{repo_path}\033[0m...")
         shutil.rmtree(os.path.join(path, repo_path))
-        return None
+        return
 
     def generate(self, gitmodules_file: str, output_file: str) -> Optional[str]:
         """

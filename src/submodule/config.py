@@ -150,7 +150,7 @@ class SubmoduleConfig:
         ]
         return True
 
-    def save_config(self) -> bool:
+    def save_config(self, config_path: str = None) -> bool:
         """
         Saves the current configuration back to the YAML file.
         """
@@ -158,7 +158,8 @@ class SubmoduleConfig:
             logger.error("No configuration data to save.")
             return False
         try:
-            with open(self.config_path, 'w', encoding='utf-8') as f:
+            config_path = config_path or self.config_path
+            with open(config_path, 'w', encoding='utf-8') as f:
                 yaml.safe_dump(
                     self.config_data,
                     f,
