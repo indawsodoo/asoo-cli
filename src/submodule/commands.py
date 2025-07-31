@@ -103,6 +103,12 @@ Adds a new repository to the YAML file.
             action="store_true",
             help="Clean .git path of the repository to save space on disk."
         )
+        add_parser.add_argument(
+            "-j", "--jobs",
+            type=int,
+            default=1,
+            help="Number of jobs to run in parallel (e.g., 1)."
+        )
         add_parser.set_defaults(func=self.handle_submodule_operation)
 
         # 'submodule update' subcommand
@@ -147,6 +153,12 @@ This option is similar to 'clone' but focused on existing repositories.
             "-ilc", "--ignore-local-changes",
             action="store_true",
             help="Ignore local changes in repositories and lose them"
+        )
+        update_parser.add_argument(
+            "-j", "--jobs",
+            type=int,
+            default=1,
+            help="Number of jobs to run in parallel (e.g., 1)."
         )
         update_parser.set_defaults(func=self.handle_submodule_operation)
 
@@ -288,7 +300,8 @@ Generate a new YAML from .gitmodules file.
         commit = self.operations.clone(
             repo_data,
             self.config_path,
-            args.git_clean
+            args.git_clean,
+            args.jobs
         )
 
         # Update YAML file
@@ -320,7 +333,8 @@ Generate a new YAML from .gitmodules file.
                 self.config_path,
                 args.remote,
                 args.git_clean,
-                args.ignore_local_changes
+                args.ignore_local_changes,
+                args.jobs
             )
             if not commit:
                 continue

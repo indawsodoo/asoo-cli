@@ -71,7 +71,8 @@ class SubmoduleOperations:
         self,
         repo_data: Dict[str, Any],
         path: str,
-        git_clean: bool = False
+        git_clean: bool = False,
+        jobs: int = 1
     ) -> Optional[str]:
         """
         Adds a new repository to the YAML file.
@@ -102,12 +103,14 @@ class SubmoduleOperations:
         try:
             if not self._exist_repo(abs_repo_path):
                 self.logger.info(f"Cloning \033[1;33;1m{repo_path}\033[0m...")
-                self._clone(repo_url, abs_repo_path, branch, depth, parent_dir)
+                self._clone(
+                    repo_url, abs_repo_path, branch, depth, parent_dir, jobs
+                )
             else:
                 self.logger.info(f"Repository '{repo_path}' already exists at {repo_path}. Updating...")
 
             if commit:
-                self._fetch_and_reset(commit, commit, abs_repo_path)
+                self._fetch_and_reset(commit, commit, abs_repo_path, jobs)
 
             commit = self._current_commit_hash(abs_repo_path)
             if git_clean:
@@ -123,7 +126,8 @@ class SubmoduleOperations:
         path: str,
         remote: bool = False,
         git_clean: bool = False,
-        ignore_local_changes: bool = False
+        ignore_local_changes: bool = False,
+        jobs: int = 1
     ) -> Optional[str]:
         """
         Updates a repository to the specified commit hash.
@@ -150,14 +154,18 @@ class SubmoduleOperations:
 
         # Clone if repository does not exist
         if not self._exist_repo(abs_repo_path):
-            return self.clone(repo_data, path, git_clean)
+            return self.clone(repo_data, path, git_clean, jobs)
 
         # Update repository
         try:
             if remote:
-                self._fetch_and_reset(branch, f"origin/{branch}", abs_repo_path)
+                self._fetch_and_reset(
+                    branch, f"origin/{branch}", abs_repo_path, jobs
+                )
             else:
-                self._fetch_and_reset(commit, commit, abs_repo_path)
+                self._fetch_and_reset(
+                    commit, commit, abs_repo_path, jobs
+                )
 
             commit = self._current_commit_hash(abs_repo_path)
             if git_clean:
@@ -242,6 +250,7 @@ class SubmoduleOperations:
         branch: str,
         depth: int,
         path: str,
+        jobs: int = 1
     ) -> Optional[str]:
         """
         Clones a repository.
@@ -251,6 +260,8 @@ class SubmoduleOperations:
             clone_command.extend(["--depth", str(depth)])
         if branch:
             clone_command.extend(["--branch", branch])
+        if jobs > 1:
+            clone_command.extend(["--jobs", str(jobs)])
         clone_command.extend(["--filter=blob:none"])
         clone_command.extend(["--single-branch"])
         clone_command.extend([repo_url, repo_path])
@@ -260,15 +271,17 @@ class SubmoduleOperations:
         self,
         fetch_resource: str,
         reset_resource: str,
-        path: str
+        path: str,
+        jobs: int = 1
     ) -> Optional[str]:
         """
         Fetches and resets a repository to the specified commit hash.
         """
-        self._run_git_command([
-            "fetch", "--depth", '1', 'origin', fetch_resource],
-            path
-        )
+        fetch_command = ["fetch", "--depth", '1', 'origin', fetch_resource]
+        if jobs > 1:
+            fetch_command.extend(["--jobs", str(jobs)])
+        self._run_git_command(fetch_command, path)
+
         self._run_git_command([
             "reset", "--quiet", "--hard", reset_resource],
             path
