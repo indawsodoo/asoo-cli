@@ -155,6 +155,11 @@ This option is similar to 'clone' but focused on existing repositories.
             help="Ignore local changes in repositories and lose them"
         )
         update_parser.add_argument(
+            "-oc", "--only-changed",
+            action="store_true",
+            help="Update repositories only if they have changed. Only works without --path argument."
+        )
+        update_parser.add_argument(
             "-j", "--jobs",
             type=int,
             default=1,
@@ -324,7 +329,22 @@ Generate a new YAML from .gitmodules file.
                 sys.exit(1)
             repos = [repos]
         else:
-            repos = self.config.get_repositories()
+            if args.only_changed and self.hidden_config:
+                repos = []
+                for repo in self.config.get_repositories():
+                    hidden_repo = self.hidden_config.get_repositories(
+                        path=repo.get('path')
+                    )
+                    if not hidden_repo or not self.operations._exist_repo(
+                        repo.get('path')
+                    ):
+                        repos.append(repo)
+                        continue
+
+                    if repo.get('commit') != hidden_repo.get('commit'):
+                        repos.append(repo)
+            else:
+                repos = self.config.get_repositories()
 
         for repo_data in repos:
             # Update repository
