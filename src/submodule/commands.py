@@ -319,6 +319,22 @@ Generate a new YAML from .gitmodules file.
     ):
         self.load_config(args)
 
+        def _get_only_changed_repos(repositories: list[dict]) -> list[dict]:
+            to_update = []
+            for repo in repositories:
+                hidden_repo = self.hidden_config.get_repositories(
+                    path=repo.get('path')
+                )
+                if not hidden_repo or not self.operations._exist_repo(
+                    os.path.join(self.config_path, repo.get('path'))
+                ):
+                    to_update.append(repo)
+                    continue
+
+                if repo.get('commit') != hidden_repo.get('commit'):
+                    to_update.append(repo)
+            return to_update
+
         # Get repositories to update
         if args.path:
             repos = self.config.get_repositories(path=args.path)
@@ -328,23 +344,20 @@ Generate a new YAML from .gitmodules file.
                 )
                 sys.exit(1)
             repos = [repos]
+            if args.only_changed and self.hidden_config:
+                repos = _get_only_changed_repos(repos)
+                if not repos:
+                    logger.info(f"Submodule \033[1;33;1m{args.path}\033[0m already up to date")
+                    return
         else:
             if args.only_changed and self.hidden_config:
-                repos = []
-                for repo in self.config.get_repositories():
-                    hidden_repo = self.hidden_config.get_repositories(
-                        path=repo.get('path')
-                    )
-                    if not hidden_repo or not self.operations._exist_repo(
-                        repo.get('path')
-                    ):
-                        repos.append(repo)
-                        continue
-
-                    if repo.get('commit') != hidden_repo.get('commit'):
-                        repos.append(repo)
+                repos = _get_only_changed_repos(self.config.get_repositories())
             else:
                 repos = self.config.get_repositories()
+
+        if not repos:
+            logger.info("Already up to date")
+            return
 
         for repo_data in repos:
             # Update repository
