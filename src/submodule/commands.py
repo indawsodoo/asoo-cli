@@ -204,7 +204,7 @@ Generate a new YAML from .gitmodules file.
         generate_parser.set_defaults(func=self.handle_submodule_operation)
 
     def load_config(self, args: argparse.Namespace):
-        if not args.config_file:
+        if not hasattr(args, 'config_file'):
             return
 
         config_file_path = os.path.join(
@@ -249,6 +249,9 @@ Generate a new YAML from .gitmodules file.
 
     def remove_deleted_submodules(self, args: argparse.Namespace):
         self.load_config(args)
+        if not self.config:
+            return
+
         repositories = [r.get('path') for r in self.config.get_repositories()]
         old_repositories = self.hidden_config.get_repositories()
         for repository in old_repositories:

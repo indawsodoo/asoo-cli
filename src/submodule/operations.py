@@ -150,7 +150,7 @@ class SubmoduleOperations:
 
         # Clone if repository does not exist
         if not self._exist_repo(abs_repo_path):
-            return self.clone(repo_data, path)
+            return self.clone(repo_data, path, git_clean)
 
         # Update repository
         try:

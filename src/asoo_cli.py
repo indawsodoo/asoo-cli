@@ -46,10 +46,6 @@ class AsooCli:
             CLI_COMMAND_NAME
         )
 
-        # You could register other commands here in the future:
-        # ci_commands_handler = CICommands()
-        # ci_commands_handler.add_subparser(self.subparsers, CLI_COMMAND_NAME)
-
     def run(self):
         """
         Executes the parser and dispatches the corresponding command.

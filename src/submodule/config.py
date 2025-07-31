@@ -27,7 +27,6 @@ class SubmoduleConfig:
             # load_dotenv() will search for '.env' in the current directory.
             load_dotenv()
 
-
     def _resolve_env_variables(self, data: Any) -> Any:
         """
         Recursively traverses a data structure (dict/list) and replaces
@@ -51,13 +50,11 @@ class SubmoduleConfig:
             return re.sub(r'\$\{(\w+)\}', replace_var, data)
         return data
 
-
     def load_config(self) -> Optional[Dict[str, Any]]:
         """
         Loads the configuration from the YAML file and resolves environment variables.
         """
         if not os.path.exists(self.config_path):
-            logger.error(f"Configuration file not found: {self.config_path}")
             return None
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
@@ -78,15 +75,16 @@ class SubmoduleConfig:
         Returns the list of repository dictionaries.
         """
         if self.config_data and 'repositories' in self.config_data:
+            repositories = self.config_data.get('repositories') or []
             if path:
                 repo = [
                     repo
-                    for repo in self.config_data.get('repositories', [])
+                    for repo in repositories
                     if repo.get('path') == path
                 ]
                 return repo[0] if repo else None
             else:
-                return self.config_data.get('repositories', [])
+                return repositories
         return []
 
     def update_repository_commit(self, repo_path: str, new_commit_hash: str) -> bool:
