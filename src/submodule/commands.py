@@ -220,36 +220,6 @@ Generate a new YAML from .gitmodules file.
         )
         generate_parser.set_defaults(func=self.handle_submodule_operation)
 
-    def load_config(self, args: argparse.Namespace):
-        if not hasattr(args, 'config_file'):
-            return
-
-        config_file_path = os.path.join(
-            self.cli.execution_path,
-            args.config_file
-        ) if not os.path.isabs(args.config_file) else args.config_file
-        if not os.path.exists(config_file_path):
-            logger.critical(
-                f"Configuration file not found: {config_file_path}"
-            )
-            sys.exit(1)
-
-        # Load config
-        self.config = SubmoduleConfig(config_file_path, env_path=args.env_file)
-        self.config_path = os.path.dirname(config_file_path)
-        self.config_name = os.path.basename(config_file_path)
-        if not self.config.load_config():
-            logger.critical("Could not load repository configuration. Exiting.")
-            sys.exit(1)
-
-        # Load hidden config
-        self.hidden_config_name = f'.{self.config_name}'
-        self.hidden_config = SubmoduleConfig(
-            os.path.join(self.config_path, self.hidden_config_name),
-            env_path=args.env_file
-        )
-        self.hidden_config.load_config()
-
     def handle_submodule_operation(self, args: argparse.Namespace):
         try:
             method = getattr(self, f"command_{args.command}")
@@ -260,26 +230,24 @@ Generate a new YAML from .gitmodules file.
         self.remove_deleted_submodules(args)
         method(args)
 
-        # Save backup config file
-        if self.hidden_config and self.config:
-            self.config.save_config(self.hidden_config.config_path)
-
     def remove_deleted_submodules(self, args: argparse.Namespace):
-        self.load_config(args)
+        self._load_config(args)
         if not self.config:
             return
 
         repositories = [r.get('path') for r in self.config.get_repositories()]
         old_repositories = self.hidden_config.get_repositories()
         for repository in old_repositories:
-            if repository.get('path') not in repositories:
+            repo_path = repository.get('path')
+            if repo_path not in repositories:
                 self.operations.rm(repository, self.config_path)
+                self._remove_config_repository(repo_path)
 
     def command_add(
         self,
         args: argparse.Namespace,
     ):
-        self.load_config(args)
+        self._load_config(args)
         if self.config.get_repositories(path=args.path):
             logger.error(f"Repository '{args.path}' already exists.")
             sys.exit(1)
@@ -292,7 +260,7 @@ Generate a new YAML from .gitmodules file.
         depth = args.depth
 
         # Add repository to config
-        self.config.add_repository(
+        self._add_config_repository(
             path=path,
             url=url,
             branch=branch,
@@ -310,14 +278,10 @@ Generate a new YAML from .gitmodules file.
         )
 
         # Update YAML file
-        self.config.update_repository_commit(path, commit)
-        self.config.save_config()
+        self._update_config_commit(path, commit)
 
-    def command_update(
-        self,
-        args: argparse.Namespace,
-    ):
-        self.load_config(args)
+    def command_update(self, args: argparse.Namespace):
+        self._load_config(args)
 
         def _get_only_changed_repos(repositories: list[dict]) -> list[dict]:
             to_update = []
@@ -373,14 +337,13 @@ Generate a new YAML from .gitmodules file.
                 continue
 
             # Update YAML file
-            self.config.update_repository_commit(repo_data.get('path'), commit)
-            self.config.save_config()
+            self._update_config_commit(repo_data.get('path'), commit)
 
     def command_rm(
         self,
         args: argparse.Namespace,
     ):
-        self.load_config(args)
+        self._load_config(args)
         repo_data = self.config.get_repositories(path=args.path)
         if not repo_data:
             logger.error(f"Repository '{args.path}' not found.")
@@ -390,11 +353,78 @@ Generate a new YAML from .gitmodules file.
         self.operations.rm(repo_data, self.config_path)
 
         # Remove repository from config
-        self.config.remove_repository(args.path)
-        self.config.save_config()
+        self._remove_config_repository(args.path)
 
     def command_generate(
         self,
         args: argparse.Namespace,
     ):
         self.operations.generate(args.gitmodules_file, args.output_file)
+
+    # -----------------------------------
+    # Config methods
+    # -----------------------------------
+    def _load_config(self, args: argparse.Namespace):
+        if not hasattr(args, 'config_file'):
+            return
+
+        config_file_path = os.path.join(
+            self.cli.execution_path,
+            args.config_file
+        ) if not os.path.isabs(args.config_file) else args.config_file
+        if not os.path.exists(config_file_path):
+            logger.critical(
+                f"Configuration file not found: {config_file_path}"
+            )
+            sys.exit(1)
+
+        # Load config
+        self.config = SubmoduleConfig(config_file_path, env_path=args.env_file)
+        self.config_path = os.path.dirname(config_file_path)
+        self.config_name = os.path.basename(config_file_path)
+        if not self.config.load_config():
+            logger.critical("Could not load repository configuration. Exiting.")
+            sys.exit(1)
+
+        # Load hidden config
+        self.hidden_config_name = f'.{self.config_name}'
+        self.hidden_config = SubmoduleConfig(
+            os.path.join(self.config_path, self.hidden_config_name),
+            env_path=args.env_file
+        )
+        self.hidden_config.load_config()
+
+    def _add_config_repository(
+        self,
+        path: str,
+        url: str,
+        branch: str,
+        commit: str,
+        depth: int
+    ):
+        self.config.add_repository(path, url, branch, commit, depth)
+        self.hidden_config.add_repository(path, url, branch, commit, depth)
+
+    def _update_config_commit(self, path: str, commit: str):
+        self.config.update_repository_commit(path, commit)
+        self.config.save_config()
+
+        # Add repository to hidden config if it doesn't exist
+        if not self.hidden_config.get_repositories(path=path):
+            repo_data = self.config.get_repositories(path=path)
+            self.hidden_config.add_repository(
+                path,
+                repo_data.get('url'),
+                repo_data.get('branch'),
+                repo_data.get('commit'),
+                repo_data.get('depth')
+            )
+        else:
+            self.hidden_config.update_repository_commit(path, commit)
+        self.hidden_config.save_config()
+
+    def _remove_config_repository(self, path: str):
+        self.config.remove_repository(path)
+        self.config.save_config()
+        self.hidden_config.remove_repository(path)
+        self.hidden_config.save_config()

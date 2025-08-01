@@ -103,7 +103,7 @@ class SubmoduleConfig:
                 break
 
         if not found:
-            logger.warning(f"Repository with name '{repo_name}' not found in configuration.")
+            logger.warning(f"Repository with name '{repo_path}' not found in configuration.")
             return False
         return found
 
