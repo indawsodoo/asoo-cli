@@ -347,7 +347,7 @@ Generate a new YAML from .gitmodules file.
         repo_data = self.config.get_repositories(path=args.path)
         if not repo_data:
             logger.error(f"Repository '{args.path}' not found.")
-            sys.exit(1)
+            return
 
         # Remove repository from filesystem
         self.operations.rm(repo_data, self.config_path)
