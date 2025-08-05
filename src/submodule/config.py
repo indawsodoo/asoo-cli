@@ -17,7 +17,10 @@ class SubmoduleConfig:
     """
     def __init__(self, config_path: str, env_path: Optional[str] = None):
         self.config_path = config_path
-        self.config_data: Optional[Dict[str, Any]] = None
+        self.config_data: Optional[Dict[str, Any]] = {'repositories': []}
+
+        # Create config file if it doesn't exist
+        self._create_config_file()
 
         # Load environment variables upon initialization
         if env_path and os.path.exists(env_path):
@@ -26,6 +29,17 @@ class SubmoduleConfig:
             # If no specific path is provided or the file doesn't exist,
             # load_dotenv() will search for '.env' in the current directory.
             load_dotenv()
+
+    def _create_config_file(self):
+        if not os.path.exists(self.config_path):
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(
+                    self.config_data,
+                    f,
+                    indent=2,
+                    default_flow_style=False,
+                    sort_keys=False
+                )
 
     def _resolve_env_variables(self, data: Any) -> Any:
         """
